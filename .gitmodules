@@ -1,0 +1,3 @@
+[submodule ".gemini/skills/pwnall-stack-specs"]
+	path = .gemini/skills/pwnall-stack-specs
+	url = https://github.com/pwnall/pwnall-stack-specs.git

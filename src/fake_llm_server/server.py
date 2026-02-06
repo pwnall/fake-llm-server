@@ -1,79 +1,159 @@
-import os
-import sys
-from contextlib import asynccontextmanager
-from typing import List, Optional, Dict, Any, Union
-from fastapi import FastAPI, HTTPException, Request
-from pydantic import BaseModel
-from llama_cpp import Llama
+"""FastAPI server for the Fake LLM."""
 
-# Global LLM instance
-llm: Optional[Llama] = None
+from collections.abc import AsyncIterator, Iterator
+from contextlib import asynccontextmanager
+from typing import Any
+
+import jinja2
+from fastapi import FastAPI, HTTPException, Request
+from llama_cpp import Llama, llama_chat_format
+from llama_cpp.llama_types import (
+    ChatCompletion,
+    ChatCompletionChunk,
+)
+from pydantic import BaseModel, ConfigDict
+
+# Monkeypatch Jinja2ChatFormatter to survive bad templates (like SmolLM3's)
+_original_jinja2_formatter_init = llama_chat_format.Jinja2ChatFormatter.__init__
+
+
+def _safe_jinja2_formatter_init(
+    self: Any,  # noqa: ANN401
+    template: str,
+    eos_token: str,
+    bos_token: str,
+    *args: Any,  # noqa: ANN401
+    **kwargs: Any,  # noqa: ANN401
+) -> None:
+    """Initializes Jinja2ChatFormatter with error handling for malformed templates.
+
+    Args:
+        self: The formatter instance.
+        template: The chat template string.
+        eos_token: The end-of-sequence token.
+        bos_token: The beginning-of-sequence token.
+        *args: Additional positional arguments.
+        **kwargs: Additional keyword arguments.
+    """
+    try:
+        _original_jinja2_formatter_init(
+            self,
+            template,
+            eos_token,
+            bos_token,
+            *args,
+            **kwargs,
+        )
+    except (jinja2.exceptions.TemplateSyntaxError, TypeError):
+        # Initialize with a dummy template to avoid attribute errors later if used
+        self.template = template
+        self.eos_token = eos_token
+        self.bos_token = bos_token
+
+
+llama_chat_format.Jinja2ChatFormatter.__init__ = _safe_jinja2_formatter_init  # type: ignore[method-assign]
+
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
-    global llm
-    model_path = os.environ.get("FAKE_LLM_MODEL_PATH")
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+    """Manages the lifespan of the FastAPI application, loading and unloading the model.
+
+    Args:
+        app: The FastAPI application instance.
+    """
+    model_path = getattr(app.state, "model_path", None)
     if not model_path:
-        print("Error: FAKE_LLM_MODEL_PATH environment variable not set.", file=sys.stderr)
-        sys.exit(1)
-    
-    print(f"Loading model from {model_path}...", file=sys.stderr)
+        msg = "model_path configuration missing"
+        raise RuntimeError(msg)
+
     try:
-        # n_ctx=0 means load from model, but explicitly setting a reasonable limit helps memory.
-        # 2048 is standard for small models.
-        llm = Llama(
-            model_path=model_path,
-            n_ctx=2048,
-            verbose=False
-        )
+        model_id = getattr(app.state, "model_id", None)
+        llama_kwargs = {"model_path": model_path, "n_ctx": 2048, "verbose": False}
+
+        # Workaround for SmolLM3 which has a Jinja template with unsupported tags
+        if model_id == "smollm3":
+            llama_kwargs["chat_format"] = "chatml"
+
+        # n_ctx=0 means load from model, but explicitly setting a reasonable limit
+        # helps memory. 2048 is standard for small models.
+        app.state.llm = Llama(**llama_kwargs)
     except Exception as e:
-        print(f"Failed to load model: {e}", file=sys.stderr)
-        sys.exit(1)
+        msg = f"Failed to load model: {e}"
+        raise RuntimeError(msg) from e
     yield
-    if llm:
-        del llm
+    if hasattr(app.state, "llm") and app.state.llm:
+        del app.state.llm
+
 
 app = FastAPI(lifespan=lifespan)
 
+
 class ChatMessage(BaseModel):
+    """Represents a single message in a chat completion request."""
+
     role: str
     content: str
 
+
 class ChatCompletionRequest(BaseModel):
+    """Represents a request to create a chat completion."""
+
     model: str
-    messages: List[ChatMessage]
+    messages: list[ChatMessage]
     stream: bool = False
-    max_tokens: Optional[int] = None
+    max_tokens: int | None = None
     temperature: float = 0.8
     top_p: float = 0.95
+
     # Allow extra fields without failure
-    class Config:
-        extra = "ignore"
+    model_config = ConfigDict(extra="ignore")
+
 
 # Note: defined as synchronous 'def' to run in threadpool and not block event loop
-@app.post("/v1/chat/completions")
-def create_chat_completion(request: ChatCompletionRequest):
+@app.post("/v1/chat/completions", response_model=None)
+def create_chat_completion(
+    request: ChatCompletionRequest,
+) -> ChatCompletion | Iterator[ChatCompletionChunk]:
+    """Endpoint for creating chat completions.
+
+    Args:
+        request: The chat completion request.
+
+    Returns:
+        The generated chat completion response.
+
+    Raises:
+        HTTPException: If the model is not loaded or an error occurs during inference.
+    """
+    llm: Llama | None = getattr(app.state, "llm", None)
     if not llm:
         raise HTTPException(status_code=503, detail="Model not loaded")
 
     messages = [msg.model_dump() for msg in request.messages]
 
     try:
-        response = llm.create_chat_completion(
-            messages=messages,
+        return llm.create_chat_completion(
+            messages=messages,  # type: ignore[arg-type]
             max_tokens=request.max_tokens,
             temperature=request.temperature,
             top_p=request.top_p,
             stream=request.stream,
         )
-        return response
     except Exception as e:
-        print(f"Error during inference: {e}", file=sys.stderr)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=str(e)) from e
+
 
 @app.get("/v1/models")
-def list_models():
-    model_id = os.environ.get("FAKE_LLM_MODEL_ID", "default-model")
+def list_models(request: Request) -> dict[str, Any]:
+    """Endpoint for listing available models.
+
+    Args:
+        request: The FastAPI request instance.
+
+    Returns:
+        A dictionary containing the list of available models.
+    """
+    model_id = getattr(request.app.state, "model_id", "unknown")
     return {
         "object": "list",
         "data": [
@@ -82,6 +162,6 @@ def list_models():
                 "object": "model",
                 "created": 1677610602,
                 "owned_by": "fake-llm-server",
-            }
-        ]
+            },
+        ],
     }

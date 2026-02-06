@@ -1,92 +1,164 @@
-import os
-import time
+"""Main entry point for the Fake LLM Server."""
+
 import socket
-import subprocess
-import sys
+import threading
+import time
+from dataclasses import dataclass
+from typing import Any
+
 import httpx
-from typing import Dict, Any
-from .models import download_model
+import uvicorn
+
+from .models import LocalModelSpec, RemoteModelSpec
+from .server import app
+
+
+@dataclass
+class ServerConfig:
+    """Configuration data passed from the main thread to the serving thread."""
+
+    model_spec: LocalModelSpec
+    port: int
+
+
+class ServingThread:
+    """Encapsulates the data accessed on the uvicorn serving thread."""
+
+    def __init__(self, config: ServerConfig) -> None:
+        """Initializes the ServingThread.
+
+        Args:
+            config: The server configuration.
+        """
+        self.config = config
+
+        # Configure app state
+        app.state.model_path = config.model_spec.model_path
+        app.state.model_id = config.model_spec.model_name
+        # Store reference to self for shutdown from main thread
+        app.state.serving_thread = self
+
+        # Configure Uvicorn
+        self.uvicorn_config = uvicorn.Config(
+            app=app,
+            host="127.0.0.1",
+            port=config.port,
+            log_level="info",
+        )
+        self.server = uvicorn.Server(self.uvicorn_config)
+
+    def run_server(self) -> None:
+        """Runs the uvicorn server."""
+        self.server.run()
+
+    def stop(self) -> None:
+        """Signals the server to stop."""
+
+        # Setting a boolean is atomic in CPython.
+        self.server.should_exit = True
+
+    @staticmethod
+    def run(config: ServerConfig) -> None:
+        """Entry point for the serving thread.
+
+        Args:
+            config: The server configuration.
+        """
+        serving_thread = ServingThread(config)
+        serving_thread.run_server()
+
 
 class FakeLLMServer:
-    def __init__(self, model: str = "gemma-3-270m"):
-        self.model = model
-        self.port = self._get_free_port()
-        print(f"Initializing FakeLLMServer with model {model} on port {self.port}...")
-        self.model_path = download_model(model)
-        self.process = None
+    """A lightweight, fake implementation of an LLM API server for testing."""
+
+    def __init__(self, model_name: str = "gemma-3-270m") -> None:
+        """Initializes the FakeLLMServer.
+
+        Args:
+            model_name: The name or repo ID of the model to use.
+        """
+        port = self._get_free_port()
+        model_spec = RemoteModelSpec.from_name(model_name).download()
+        self.config = ServerConfig(
+            model_spec=model_spec,
+            port=port,
+        )
+        self.thread: threading.Thread | None = None
         self._start_server()
 
     def _get_free_port(self) -> int:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind(('', 0))
-            return s.getsockname()[1]
+        """Finds a free port to bind the server to.
 
-    def _start_server(self):
-        env = os.environ.copy()
-        env["FAKE_LLM_MODEL_PATH"] = self.model_path
-        env["FAKE_LLM_MODEL_ID"] = self.model
-        env["PYTHONUNBUFFERED"] = "1"
-        
-        # Ensure the current directory (workspace root) is in PYTHONPATH 
-        # so src.fake_llm_server is importable
-        cwd = os.getcwd()
-        python_path = env.get("PYTHONPATH", "")
-        env["PYTHONPATH"] = f"{cwd}:{python_path}"
-        
-        cmd = [
-            sys.executable, "-m", "uvicorn", 
-            "src.fake_llm_server.server:app", 
-            "--host", "127.0.0.1", 
-            "--port", str(self.port)
-        ]
-        
-        self.process = subprocess.Popen(
-            cmd,
-            env=env,
-            stdout=sys.stdout, # redirect to main process stdout for visibility
-            stderr=sys.stderr  # redirect to main process stderr
+        Returns:
+            An available port number.
+        """
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+            s.bind(("", 0))
+            return int(s.getsockname()[1])
+
+    def _start_server(self) -> None:
+        """Starts the FastAPI server in a separate thread."""
+        self.thread = threading.Thread(
+            target=lambda: ServingThread.run(self.config), daemon=True,
         )
-        
+        self.thread.start()
+
         self._wait_for_server()
 
-    def _wait_for_server(self, timeout: int = 300): # 5 minutes max (downloading can take time but we download before start)
-        # Loading the model into RAM can take a few seconds
+    def _wait_for_server(self, timeout: int = 300) -> None:  # 5 minutes max
+        """Waits for the server to become ready by polling its health endpoint.
+
+        Args:
+            timeout: Maximum time to wait in seconds.
+
+        Raises:
+            RuntimeError: If the server thread dies or startup times out.
+        """
         start_time = time.time()
-        url = f"http://127.0.0.1:{self.port}/v1/models"
-        
-        print("Waiting for server to become ready...")
+        url = f"http://127.0.0.1:{self.config.port}/v1/models"
+
         while time.time() - start_time < timeout:
-            if self.process.poll() is not None:
-                raise RuntimeError(f"Server process exited unexpectedly with code {self.process.returncode}")
-            
+            if self.thread is None or not self.thread.is_alive():
+                msg = "Server thread died unexpectedly"
+                raise RuntimeError(msg)
+
             try:
                 response = httpx.get(url, timeout=1)
-                if response.status_code == 200:
-                    print("Server is ready.")
+                if response.status_code == httpx.codes.OK:
                     return
             except httpx.RequestError:
                 pass
-            
-            time.sleep(1)
-            
-        self.shutdown()
-        raise RuntimeError("Server timed out waiting for startup")
 
-    def openai_client_args(self) -> Dict[str, Any]:
+            time.sleep(1)
+
+        self.shutdown()
+        msg = "Server timed out waiting for startup"
+        raise RuntimeError(msg)
+
+    def openai_client_args(self) -> dict[str, Any]:
+        """Returns arguments suitable for initializing an OpenAI API client.
+
+        Returns:
+            A dictionary containing base_url and api_key.
+        """
         return {
-            "base_url": f"http://127.0.0.1:{self.port}/v1",
-            "api_key": "fake-key"
+            "base_url": f"http://127.0.0.1:{self.config.port}/v1",
+            "api_key": "fake-key",
         }
 
-    def shutdown(self):
-        if self.process:
-            print("Shutting down FakeLLMServer...")
-            self.process.terminate()
-            try:
-                self.process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                self.process.kill()
-            self.process = None
+    def shutdown(self) -> None:
+        """Shuts down the server and joins the background thread."""
+        # Retrieve the ServingThread instance from app state
+        serving_thread = getattr(app.state, "serving_thread", None)
+        if serving_thread:
+            serving_thread.stop()
+            # Clear the reference
+            del app.state.serving_thread
 
-    def __del__(self):
+        if self.thread and self.thread.is_alive():
+            self.thread.join(timeout=5)
+        self.thread = None
+
+    def __del__(self) -> None:
+        """Ensures the server is shut down when the object is destroyed."""
         self.shutdown()

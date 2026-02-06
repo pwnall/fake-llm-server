@@ -34,7 +34,10 @@ Each `FakeLLMServer` instance launches the FastAPI server on top of
 The library uses [llama.cpp](https://github.com/ggml-org/llama.cpp) via
 [llama-cpp-python](https://github.com/abetlen/llama-cpp-python) for inference.
 The library is focused on models in
-[the GGUF format](https://github.com/ggml-org/ggml/blob/master/docs/gguf.md)
+[the GGUF format](https://github.com/ggml-org/ggml/blob/master/docs/gguf.md).
+
+The library explicitly relies on llama.cpp's mmap (memory mapping) feature to
+minimize I/O while `FakeLLMServer` is instantiated as much as one time per test.
 
 The library downloads and caches models from Hugging Face via
 [huggingface_hub](https://github.com/huggingface/huggingface_hub). The library
@@ -57,15 +60,6 @@ The API server currently implements the following subset of the
 The API server implementation is based on the
 [OpenAPI](https://spec.openapis.org/oas/latest.html)
 [specification for the OpenAI API](https://app.stainless.com/api/spec/documented/openai/openapi.documented.yml).
-
-## Supported models
-
-* Qwen 2.5 Coder 3B
-* Qwen 2.5 Coder 1.5B (recommended for code generation)
-* Llama 3.2 Instruct 3B
-* SmolLM3 3B (recommended for reasoning)
-* Gemma 3 1B Instruction Tuned
-* Gemma 3 270M Instruction Tuned (recommended for smaller tests)
 
 ## Testing
 
@@ -95,6 +89,19 @@ Create a fake API server.
 ```python
 fake_llm_server = FakeLLMServer(model_name="gemma-3-270m")
 ```
+
+`model_name` can be one of the aliases for the supported models below, or a
+HuggingFace repository ID. Aliases never contain `/`, whereas repository IDs
+always contain a `/`.
+
+### Supported models
+
+* `qwen-2.5-coder-3b`
+* `qwen-2.5-coder-1.5b` -recommended for code generation
+* `llama-3.2-3b-instruct`
+* `smollm3` - SmolLM3 3B - recommended for reasoning
+* `gemma-3-1b` - Gemma 3 1B Instruction Tuned
+* `gemma-3-270m` - Gemma 3 270M Instruction Tuned - recommended for small tests
 
 Obtain client arguments for OpenAI API implementation.
 

@@ -1,0 +1,51 @@
+
+from unittest.mock import patch, MagicMock
+import pytest
+from fake_llm_server.models import RemoteModelSpec, SUPPORTED_MODELS
+
+def test_from_name_supported_model():
+    """Test from_name with a known supported model name."""
+    # Pick a key from SUPPORTED_MODELS
+    model_name = "qwen-2.5-coder-1.5b"
+    spec = RemoteModelSpec.from_name(model_name)
+    assert spec == SUPPORTED_MODELS[model_name]
+    assert spec.repo_id == "Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF"
+
+@patch("fake_llm_server.models.list_repo_files")
+def test_from_name_repo_id_success(mock_list_files):
+    """Test from_name with a valid repo ID."""
+    repo_id = "someuser/somerepo"
+    mock_list_files.return_value = [
+        "config.json",
+        "model-q4_k_m.gguf",
+        "README.md"
+    ]
+    
+    spec = RemoteModelSpec.from_name(repo_id)
+    assert spec.repo_id == repo_id
+    assert spec.filename == "model-q4_k_m.gguf"
+
+def test_from_name_invalid_name():
+    """Test from_name with an invalid name (no slash, not in supported)."""
+    with pytest.raises(ValueError, match="Model 'invalid-model' not supported"):
+        RemoteModelSpec.from_name("invalid-model")
+
+@patch("fake_llm_server.models.list_repo_files")
+def test_from_name_repo_no_gguf(mock_list_files):
+    """Test from_name with a repo having no gguf files."""
+    repo_id = "someuser/emptyrepo"
+    mock_list_files.return_value = ["README.md", "config.json"]
+    
+    with pytest.raises(ValueError, match=f"No .gguf files found in {repo_id}"):
+        RemoteModelSpec.from_name(repo_id)
+
+@patch("fake_llm_server.models.list_repo_files")
+def test_from_repo_id_method(mock_list_files):
+    """Test the new from_repo_id method directly."""
+    
+    repo_id = "user/repo"
+    mock_list_files.return_value = ["file.gguf"]
+    
+    spec = RemoteModelSpec.from_repo_id(repo_id)
+    assert spec.repo_id == repo_id
+    assert spec.filename == "file.gguf"

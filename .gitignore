@@ -11,7 +11,6 @@ __pycache__/
 /.venv/
 
 # Python library packaging
-.Python
 /build/
 /dist/
 /wheels/

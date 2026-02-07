@@ -1,3 +1,5 @@
+"""Tests for the RemoteModelSpec class."""
+
 from unittest.mock import MagicMock, patch
 
 import pytest

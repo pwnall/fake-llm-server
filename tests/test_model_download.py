@@ -1,6 +1,6 @@
 """Tests for model downloading and verifying file sizes."""
 
-import os
+from pathlib import Path
 
 import pytest
 
@@ -20,23 +20,23 @@ MIN_SIZES = {
 
 @pytest.mark.parametrize("model_name", list(SUPPORTED_MODELS.keys()))
 def test_model_download_and_size(model_name: str) -> None:
-    """Verifies that each model can be downloaded and the file size is within
-    expected bounds.
+    """Verifies that each model can be downloaded.
+
+    Checks if the file size is within expected bounds.
 
     Args:
         model_name: The name of the model to test.
     """
-    print(f"Testing download for {model_name}...")
     try:
-        path = RemoteModelSpec.from_name(model_name).download().model_path
-        assert os.path.exists(path)
+        path_str = RemoteModelSpec.from_name(model_name).download().model_path
+        path = Path(path_str)
+        assert path.exists()
 
-        size = os.path.getsize(path)
+        size = path.stat().st_size
         min_size = MIN_SIZES.get(model_name, 100 * 1024 * 1024)  # Default 100MB
 
         assert size > min_size, (
             f"Model {model_name} file size {size} is smaller than expected {min_size}"
         )
-        print(f"Model {model_name} OK: {size} bytes")
-    except Exception as e:
+    except (RuntimeError, ValueError) as e:
         pytest.fail(f"Download failed for {model_name}: {e}")

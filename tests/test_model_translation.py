@@ -68,7 +68,7 @@ def test_translate_repo_id_no_gguf(mock_list_files: MagicMock) -> None:
     repo_id = "someuser/empty-repo"
     mock_list_files.return_value = ["README.md", "config.json"]
 
-    with pytest.raises(ValueError, match="No .gguf files found"):
+    with pytest.raises(ValueError, match=r"No .gguf files found"):
         RemoteModelSpec.from_name(repo_id)
 
 

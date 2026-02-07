@@ -54,7 +54,6 @@ def test_chat_completion(server: FakeLLMServer) -> None:
     )
 
     content = response.choices[0].message.content
-    print(f"Model response: {content}")
     assert content
 
 

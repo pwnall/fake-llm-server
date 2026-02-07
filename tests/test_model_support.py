@@ -15,7 +15,6 @@ def run_deterministic_test(model_name: str, prompt: str, expected_output: str) -
         prompt: The input prompt for the model.
         expected_output: The expected string output from the model.
     """
-    print(f"\nTesting {model_name}...")
     server = FakeLLMServer(model_name=model_name)
     try:
         client = OpenAI(**server.openai_client_args())
@@ -26,9 +25,9 @@ def run_deterministic_test(model_name: str, prompt: str, expected_output: str) -
             max_tokens=64,  # Increased slightly to capture full outputs
         )
         content = response.choices[0].message.content
-        print(f"Output: {content!r}")
         # We strip whitespace from the ends for robust comparison
-        assert content and content.strip() == expected_output.strip()
+        assert content
+        assert content.strip() == expected_output.strip()
     finally:
         server.shutdown()
         gc.collect()

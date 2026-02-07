@@ -1,5 +1,7 @@
 """Tests for verifying support and basic functionality of various LLM models."""
 
+import gc
+
 from openai import OpenAI
 
 from fake_llm_server import FakeLLMServer
@@ -29,6 +31,7 @@ def run_deterministic_test(model_name: str, prompt: str, expected_output: str) -
         assert content and content.strip() == expected_output.strip()
     finally:
         server.shutdown()
+        gc.collect()
 
 
 def test_gemma_3_270m_simple() -> None:

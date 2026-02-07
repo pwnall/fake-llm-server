@@ -1,6 +1,4 @@
-"""
-Tests for model downloading and verifying file sizes.
-"""
+"""Tests for model downloading and verifying file sizes."""
 
 import os
 
@@ -22,8 +20,7 @@ MIN_SIZES = {
 
 @pytest.mark.parametrize("model_name", list(SUPPORTED_MODELS.keys()))
 def test_model_download_and_size(model_name: str) -> None:
-    """
-    Verifies that each model can be downloaded and the file size is within
+    """Verifies that each model can be downloaded and the file size is within
     expected bounds.
 
     Args:

@@ -53,7 +53,6 @@ class ServingThread:
 
     def stop(self) -> None:
         """Signals the server to stop."""
-
         # Setting a boolean is atomic in CPython.
         self.server.should_exit = True
 
@@ -99,7 +98,8 @@ class FakeLLMServer:
     def _start_server(self) -> None:
         """Starts the FastAPI server in a separate thread."""
         self.thread = threading.Thread(
-            target=lambda: ServingThread.run(self.config), daemon=True,
+            target=lambda: ServingThread.run(self.config),
+            daemon=True,
         )
         self.thread.start()
 

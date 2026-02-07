@@ -1,6 +1,4 @@
-"""
-Tests for model name translation logic.
-"""
+"""Tests for model name translation logic."""
 
 from unittest.mock import MagicMock, patch
 
@@ -10,9 +8,7 @@ from fake_llm_server.models import SUPPORTED_MODELS, RemoteModelSpec
 
 
 def test_translate_known_alias() -> None:
-    """
-    Verifies translation of a known model alias.
-    """
+    """Verifies translation of a known model alias."""
     spec = RemoteModelSpec.from_name("gemma-3-270m")
     assert spec == SUPPORTED_MODELS["gemma-3-270m"]
     assert spec.repo_id == "unsloth/gemma-3-270m-it-GGUF"
@@ -20,17 +16,14 @@ def test_translate_known_alias() -> None:
 
 
 def test_translate_unknown_alias_raises() -> None:
-    """
-    Verifies that an unknown alias raises a ValueError.
-    """
+    """Verifies that an unknown alias raises a ValueError."""
     with pytest.raises(ValueError, match="Model 'unknown-model' not supported"):
         RemoteModelSpec.from_name("unknown-model")
 
 
 @patch("fake_llm_server.models.list_repo_files")
 def test_translate_repo_id_with_q4_k_m(mock_list_files: MagicMock) -> None:
-    """
-    Verifies translation of a repo ID when a Q4_K_M file is available.
+    """Verifies translation of a repo ID when a Q4_K_M file is available.
 
     Args:
         mock_list_files: Mocked list_repo_files function.
@@ -49,8 +42,7 @@ def test_translate_repo_id_with_q4_k_m(mock_list_files: MagicMock) -> None:
 
 @patch("fake_llm_server.models.list_repo_files")
 def test_translate_repo_id_without_preference(mock_list_files: MagicMock) -> None:
-    """
-    Verifies translation of a repo ID when no preferred file is available.
+    """Verifies translation of a repo ID when no preferred file is available.
 
     Args:
         mock_list_files: Mocked list_repo_files function.
@@ -68,8 +60,7 @@ def test_translate_repo_id_without_preference(mock_list_files: MagicMock) -> Non
 
 @patch("fake_llm_server.models.list_repo_files")
 def test_translate_repo_id_no_gguf(mock_list_files: MagicMock) -> None:
-    """
-    Verifies that a repo ID with no GGUF files raises a ValueError.
+    """Verifies that a repo ID with no GGUF files raises a ValueError.
 
     Args:
         mock_list_files: Mocked list_repo_files function.
@@ -83,8 +74,7 @@ def test_translate_repo_id_no_gguf(mock_list_files: MagicMock) -> None:
 
 @patch("fake_llm_server.models.list_repo_files")
 def test_translate_repo_id_list_fails(mock_list_files: MagicMock) -> None:
-    """
-    Verifies that an error during file listing raises a ValueError.
+    """Verifies that an error during file listing raises a ValueError.
 
     Args:
         mock_list_files: Mocked list_repo_files function.

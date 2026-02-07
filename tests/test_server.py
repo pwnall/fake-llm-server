@@ -1,6 +1,4 @@
-"""
-Tests for the FakeLLMServer API endpoints.
-"""
+"""Tests for the FakeLLMServer API endpoints."""
 
 from collections.abc import Generator
 
@@ -12,8 +10,7 @@ from fake_llm_server import FakeLLMServer
 
 @pytest.fixture(scope="module")
 def server() -> Generator[FakeLLMServer]:
-    """
-    Fixture that starts and stops a FakeLLMServer instance for testing.
+    """Fixture that starts and stops a FakeLLMServer instance for testing.
 
     Yields:
         A running FakeLLMServer instance.
@@ -26,8 +23,7 @@ def server() -> Generator[FakeLLMServer]:
 
 
 def test_list_models(server: FakeLLMServer) -> None:
-    """
-    Verifies the list models endpoint.
+    """Verifies the list models endpoint.
 
     Args:
         server: The running server instance.
@@ -42,8 +38,7 @@ def test_list_models(server: FakeLLMServer) -> None:
 
 
 def test_chat_completion(server: FakeLLMServer) -> None:
-    """
-    Verifies the chat completion endpoint.
+    """Verifies the chat completion endpoint.
 
     Args:
         server: The running server instance.
@@ -64,8 +59,7 @@ def test_chat_completion(server: FakeLLMServer) -> None:
 
 
 def test_temperature_effect(server: FakeLLMServer) -> None:
-    """
-    Verifies that setting a high temperature affects the response content.
+    """Verifies that setting a high temperature affects the response content.
 
     Args:
         server: The running server instance.

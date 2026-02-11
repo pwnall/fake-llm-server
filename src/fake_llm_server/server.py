@@ -102,7 +102,7 @@ class ChatCompletionRequest(BaseModel):
     messages: list[ChatMessage]
     stream: bool = False
     max_tokens: int | None = None
-    temperature: float = 0.8
+    temperature: float = 0.0
     top_p: float = 0.95
 
     # Allow extra fields without failure

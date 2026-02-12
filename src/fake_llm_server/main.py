@@ -17,7 +17,7 @@ from .server import app
 class ServerConfig:
     """Configuration data passed from the main thread to the serving thread."""
 
-    model_spec: LocalModelSpec
+    model_specs: dict[str, LocalModelSpec]
     port: int
 
 
@@ -33,8 +33,7 @@ class ServingThread:
         self.config = config
 
         # Configure app state
-        app.state.model_path = config.model_spec.model_path
-        app.state.model_id = config.model_spec.model_name
+        app.state.model_specs = config.model_specs
         # Store reference to self for shutdown from main thread
         app.state.serving_thread = self
 
@@ -70,16 +69,51 @@ class ServingThread:
 class FakeLLMServer:
     """A lightweight, fake implementation of an LLM API server for testing."""
 
-    def __init__(self, model_name: str = "gemma-3-270m") -> None:
+    def __init__(
+        self,
+        model_names: list[str] | None = None,
+        aliases: dict[str, str] | None = None,
+    ) -> None:
         """Initializes the FakeLLMServer.
 
         Args:
-            model_name: The name or repo ID of the model to use.
+            model_names: List of model names or repo IDs to use.
+            aliases: Dictionary mapping aliases to model names/repo IDs.
         """
+        if model_names is None:
+            model_names = ["gemma-3-270m"]
+        if aliases is None:
+            aliases = {}
+
         port = self._get_free_port()
-        model_spec = RemoteModelSpec.from_name(model_name).download()
+        model_specs: dict[str, LocalModelSpec] = {}
+        downloaded_specs: dict[str, LocalModelSpec] = {}
+
+        # Identify all unique models to download
+        unique_models = set(model_names)
+        unique_models.update(aliases.values())
+
+        for name in unique_models:
+            # We assume name is either a supported model alias or a repo ID
+            spec = RemoteModelSpec.from_name(name).download()
+            downloaded_specs[name] = spec
+
+        # Map requested model names to specs
+        for name in model_names:
+            model_specs[name] = downloaded_specs[name]
+
+        # Map aliases to specs
+        for alias, target in aliases.items():
+            if target in downloaded_specs:
+                model_specs[alias] = downloaded_specs[target]
+            else:
+                # This case should be covered by unique_models loop, but for safety:
+                spec = RemoteModelSpec.from_name(target).download()
+                downloaded_specs[target] = spec
+                model_specs[alias] = spec
+
         self.config = ServerConfig(
-            model_spec=model_spec,
+            model_specs=model_specs,
             port=port,
         )
         self.thread: threading.Thread | None = None

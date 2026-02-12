@@ -61,28 +61,42 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     Args:
         app: The FastAPI application instance.
     """
-    model_path = getattr(app.state, "model_path", None)
-    if not model_path:
-        msg = "model_path configuration missing"
+    model_specs = getattr(app.state, "model_specs", {})
+    if not model_specs:
+        msg = "model_specs configuration missing"
         raise RuntimeError(msg)
 
+    app.state.llms = {}
+    loaded_models: dict[str, Llama] = {}
+
     try:
-        model_id = getattr(app.state, "model_id", None)
-        llama_kwargs = {"model_path": model_path, "n_ctx": 2048, "verbose": False}
+        for name, spec in model_specs.items():
+            if spec.model_path in loaded_models:
+                app.state.llms[name] = loaded_models[spec.model_path]
+                continue
 
-        # Workaround for SmolLM3 which has a Jinja template with unsupported tags
-        if model_id == "smollm3":
-            llama_kwargs["chat_format"] = "chatml"
+            llama_kwargs = {
+                "model_path": spec.model_path,
+                "n_ctx": 2048,
+                "verbose": False,
+            }
 
-        # n_ctx=0 means load from model, but explicitly setting a reasonable limit
-        # helps memory. 2048 is standard for small models.
-        app.state.llm = Llama(**llama_kwargs)
+            # Workaround for SmolLM3 which has a Jinja template with unsupported tags
+            if spec.model_name == "smollm3":
+                llama_kwargs["chat_format"] = "chatml"
+
+            # n_ctx=0 means load from model, but explicitly setting a reasonable limit
+            # helps memory. 2048 is standard for small models.
+            llm = Llama(**llama_kwargs)
+            loaded_models[spec.model_path] = llm
+            app.state.llms[name] = llm
+
     except Exception as e:
         msg = f"Failed to load model: {e}"
         raise RuntimeError(msg) from e
     yield
-    if hasattr(app.state, "llm") and app.state.llm:
-        del app.state.llm
+    if hasattr(app.state, "llms"):
+        del app.state.llms
 
 
 app = FastAPI(lifespan=lifespan)
@@ -125,9 +139,13 @@ def create_chat_completion(
     Raises:
         HTTPException: If the model is not loaded or an error occurs during inference.
     """
-    llm: Llama | None = getattr(app.state, "llm", None)
+    llms: dict[str, Llama] = getattr(app.state, "llms", {})
+    llm = llms.get(request.model)
+
     if not llm:
-        raise HTTPException(status_code=503, detail="Model not loaded")
+        raise HTTPException(
+            status_code=404, detail=f"Model '{request.model}' not found"
+        )
 
     messages = [msg.model_dump() for msg in request.messages]
 
@@ -153,7 +171,7 @@ def list_models(request: Request) -> dict[str, Any]:
     Returns:
         A dictionary containing the list of available models.
     """
-    model_id = getattr(request.app.state, "model_id", "unknown")
+    llms: dict[str, Llama] = getattr(request.app.state, "llms", {})
     return {
         "object": "list",
         "data": [
@@ -162,6 +180,7 @@ def list_models(request: Request) -> dict[str, Any]:
                 "object": "model",
                 "created": 1677610602,
                 "owned_by": "fake-llm-server",
-            },
+            }
+            for model_id in llms
         ],
     }

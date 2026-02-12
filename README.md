@@ -8,15 +8,26 @@ instead of a large one (LLM).
 
 ## Usage
 
-Create a fake API server.
+Create a fake API server and pass the arguments to an API client
 
 ```python
-fake_llm_server = FakeLLMServer(model_name="gemma-3-270m")
+from fake_llm_server import FakeLLMServer
+
+fake_llm_server = FakeLLMServer(
+    model_names=["gemma-3-270m", "qwen-2.5-coder-3b"]
+    aliases={"GPT-5.2-Codex": "qwen-2.5-coder-3b"})
+
+from openai import OpenAI
+
+client = OpenAI(**fake_llm_server.openai_client_args())
 ```
 
-`model_name` can be one of the aliases for the supported models below, or a
-HuggingFace repository ID. Aliases never contain `/`, whereas repository IDs
-always contain a `/`.
+Each `model_names` elements must be one of the aliases for the supported models
+below, or a HuggingFace repository ID. Aliases never contain `/`, whereas
+repository IDs always contain a `/`.
+
+Model aliases must point to canonical model names -- transitive aliases are not
+supported. Aliases are recognized by all APIs.
 
 ### Supported models
 
@@ -26,12 +37,6 @@ always contain a `/`.
 * `smollm3` - SmolLM3 3B - recommended for reasoning
 * `gemma-3-1b` - Gemma 3 1B Instruction Tuned
 * `gemma-3-270m` - Gemma 3 270M Instruction Tuned - recommended for small tests
-
-Obtain client arguments for OpenAI API implementation.
-
-```python
-fake_llm_server.openai_client_args()
-```
 
 ## Development
 

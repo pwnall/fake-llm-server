@@ -15,7 +15,7 @@ def run_deterministic_test(model_name: str, prompt: str, expected_output: str) -
         prompt: The input prompt for the model.
         expected_output: The expected string output from the model.
     """
-    server = FakeLLMServer(model_name=model_name)
+    server = FakeLLMServer(model_names=[model_name])
     try:
         client = OpenAI(**server.openai_client_args())
         response = client.chat.completions.create(

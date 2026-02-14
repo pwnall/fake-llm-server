@@ -1,10 +1,12 @@
 """Models and specifications for LLM models."""
 
+import os
 from dataclasses import dataclass
 from typing import Any, cast
 
 from huggingface_hub import hf_hub_download, list_repo_files
 from llama_cpp import Llama
+import psutil
 
 
 @dataclass(frozen=True)
@@ -23,9 +25,11 @@ class DownloadedModel:
         Returns:
             A Llama instance.
         """
+        n_threads = psutil.cpu_count(logical=False) or os.process_cpu_count() or 1
         llama_kwargs = {
             "model_path": self.model_path,
             "n_ctx": 2048,
+            "n_threads": n_threads,
             "verbose": False,
         }
 

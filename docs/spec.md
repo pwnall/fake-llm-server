@@ -39,6 +39,10 @@ The library is focused on models in
 The library explicitly relies on llama.cpp's mmap (memory mapping) feature to
 minimize I/O while `FakeLLMServer` is instantiated as much as one time per test.
 
+The library uses [psutil](https://psutil.readthedocs.io/) to compute the number
+of physical cores on the CPU, and sets the llama.cpp number of threads to
+match. If psutil fails, `os.process_cpu_count()` is used as fallback.
+
 ### Model management
 
 The library downloads and caches models from Hugging Face via

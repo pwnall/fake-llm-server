@@ -14,7 +14,7 @@ def main() -> None:
     """Starts the FakeLLMServer and keeps it running until interrupted."""
     logger.info("Starting FakeLLMServer with default model (gemma-3-270m)...")
     # Using gemma-3-270m as it is the recommended small model
-    server = FakeLLMServer(model_names=["gemma-3-270m"])
+    server = FakeLLMServer(model_names=("gemma-3-270m",))
     logger.info("Server running.")
     logger.info("Client configuration: %s", server.openai_client_args())
     logger.info("Press Ctrl+C to stop.")

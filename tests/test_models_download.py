@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from fake_llm_server.models import SUPPORTED_MODELS, RemoteModelSpec
+from fake_llm_server._models import SUPPORTED_MODEL_ALIASES, ModelSpec
 
 # Approximate expected minimum sizes in bytes
 # 3B ~ 2GB, 1.5B ~ 1GB, 1B ~ 600MB, 270M ~ 150MB
@@ -18,7 +18,7 @@ MIN_SIZES = {
 }
 
 
-@pytest.mark.parametrize("model_name", list(SUPPORTED_MODELS.keys()))
+@pytest.mark.parametrize("model_name", list(SUPPORTED_MODEL_ALIASES.keys()))
 def test_model_download_and_size(model_name: str) -> None:
     """Verifies that each model can be downloaded.
 
@@ -28,7 +28,7 @@ def test_model_download_and_size(model_name: str) -> None:
         model_name: The name of the model to test.
     """
     try:
-        path_str = RemoteModelSpec.from_name(model_name).download().model_path
+        path_str = ModelSpec.from_name(model_name).download().model_path
         path = Path(path_str)
         assert path.exists()
 

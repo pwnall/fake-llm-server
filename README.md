@@ -14,7 +14,7 @@ Create a fake API server and pass the arguments to an API client
 from fake_llm_server import FakeLLMServer
 
 fake_llm_server = FakeLLMServer(
-    model_names=["gemma-3-270m", "qwen-2.5-coder-3b"]
+    model_names=("gemma-3-270m", "qwen-2.5-coder-3b"),
     aliases={"GPT-5.2-Codex": "qwen-2.5-coder-3b"})
 
 from openai import OpenAI
@@ -22,9 +22,11 @@ from openai import OpenAI
 client = OpenAI(**fake_llm_server.openai_client_args())
 ```
 
-Each `model_names` elements must be one of the aliases for the supported models
-below, or a HuggingFace repository ID. Aliases never contain `/`, whereas
-repository IDs always contain a `/`.
+Each `model_names` elements must be one of the short names for the supported
+models below, or a HuggingFace repository ID. Short names never contain `/`,
+whereas repository IDs always contain a `/`.
+
+Each `aliases` dictionary value must be one of the entries in `model_names`.
 
 Model aliases must point to canonical model names -- transitive aliases are not
 supported. Aliases are recognized by all APIs.
@@ -42,4 +44,5 @@ supported. Aliases are recognized by all APIs.
 
 The following documents are useful for development.
 
-*  [project specification](docs/spec.md)
+* [project specification](docs/spec.md)
+* [code map](docs/code_map.md)

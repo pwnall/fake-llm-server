@@ -17,6 +17,7 @@ dev = [
     "mypy>=1.19.1",
     "openai>=2.16.0",
     "pytest>=9.0.2",
+    "pytest-cov>=7.0.0",
     "ruff>=0.14.14",
     "types-requests>=2.32.4.20260107",
     "types-setuptools>=80.10.0.20260124",
@@ -26,11 +27,22 @@ dev = [
 requires = ["uv_build>=0.10"]
 build-backend = "uv_build"
 
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+
+[tool.coverage.run]
+branch = true
+source = ["src"]
+omit = [
+    "*/__init__.py",
+]
+
 [tool.mypy]
 strict = true
 
 [tool.pytest.ini_options]
-addopts = "-ra -q"
+addopts = "--cov=src --cov-config=pyproject.toml -ra --quiet"
 pythonpath = "src"
 testpaths = ["tests"]
 

@@ -10,7 +10,7 @@ from fake_llm_server import FakeLLMServer
 def test_multi_model_support() -> None:
     """Verifies that the server can handle multiple models."""
     # Using the two smallest models to minimize memory usage during tests
-    model_names = ["gemma-3-270m", "gemma-3-1b"]
+    model_names = ("gemma-3-270m", "gemma-3-1b")
     server = FakeLLMServer(model_names=model_names)
 
     try:
@@ -45,7 +45,7 @@ def test_multi_model_support() -> None:
 
 def test_aliases() -> None:
     """Verifies that aliases work correctly."""
-    model_names = ["gemma-3-270m"]
+    model_names = ("gemma-3-270m",)
     aliases = {"my-gemma": "gemma-3-270m"}
     server = FakeLLMServer(model_names=model_names, aliases=aliases)
 

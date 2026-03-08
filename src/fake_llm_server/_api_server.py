@@ -109,20 +109,20 @@ def parse_server_args(
 
 
 @asynccontextmanager
-async def _lifespan(app: FastAPI) -> AsyncIterator[None]:
+async def _lifespan(application: FastAPI) -> AsyncIterator[None]:
     """Manages the lifespan of the FastAPI application.
 
     Args:
-        app: The FastAPI application instance.
+        application: The FastAPI application instance.
     """
-    llms: ServingConfiguration = getattr(app.state, "llms", {})
+    llms: ServingConfiguration = getattr(application.state, "llms", {})
     if not llms:
         msg = "llms configuration missing"
         raise RuntimeError(msg)
 
     yield
-    if hasattr(app.state, "llms"):
-        del app.state.llms
+    if hasattr(application.state, "llms"):
+        del application.state.llms
 
 
 class _ChatMessage(BaseModel):

@@ -57,16 +57,16 @@ application via uvicorn on a separate thread. All the logic (including the
 constructor) runs exclusively on the serving thread. All the data is accessed
 exclusively on the serving thread.
 
-`StartInfo` stores information created by the uvicorn server start. The data is
+`StartInfo` stores information about the uvicorn server's state. The data is
 accessed on both the main thread and the serving thread, so data accesses are
 protected by a `threading.Lock` mutex. The data includes
-* the port that the uvicorn listens to
+* the bound socket's port (the port that the uvicorn listens to)
 * a `threading.Event` event that is set after the uvicorn server starts
 * a reference to the uvicorn server instance
 
 The `FakeLLMServer` constructor calls `parse_server_args`, creates the
-`StartInfo` instance, and spawns the uvicorn serving thread. The serving
-thread's target is a lambda that calls the `ServingThread` constructor,
-passing the `ServingConfiguration` produced by `parse_server_args` and the
-`StartInfo`.
+`StartInfo` instance, binds a socket to a free port, and spawns the uvicorn
+serving thread. The serving thread's target is a lambda that calls the
+`ServingThread` constructor, passing the `ServingConfiguration` produced by
+`parse_server_args`, the `StartInfo`, and the bound socket.
 

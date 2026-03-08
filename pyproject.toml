@@ -20,6 +20,7 @@ dev = [
     "pytest>=9.0.2",
     "pytest-cov>=7.0.0",
     "ruff>=0.14.14",
+    "types-psutil>=7.2.2.20260130",
     "types-requests>=2.32.4.20260107",
     "types-setuptools>=80.10.0.20260124",
 ]
@@ -56,7 +57,10 @@ select = ["ALL"]
 ignore = ["COM812"]  # Conflicts with the formatter.
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101"]  # assert is idiomatic in Pytest.
+"tests/**" = [
+  "PLR2004",  # Tests use constants (DAMP vs DRY).
+  "S101",  # assert is idiomatic in Pytest.
+]
 
 [tool.ruff.lint.pydocstyle]
 convention = "google"

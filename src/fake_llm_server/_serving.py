@@ -1,9 +1,11 @@
 """Serving infrastructure for the Fake LLM Server."""
 
+import gc
 import socket
 import threading
 import time
-from typing import Any
+from types import TracebackType
+from typing import Any, Self
 
 import uvicorn
 
@@ -63,12 +65,18 @@ class _NotifyServer(uvicorn.Server):
 class ServingThread:
     """Encapsulates the data and logic for serving the FastAPI application."""
 
-    def __init__(self, config: ServingConfiguration, start_info: StartInfo) -> None:
+    def __init__(
+        self,
+        config: ServingConfiguration,
+        start_info: StartInfo,
+        sock: socket.socket,
+    ) -> None:
         """Initializes the ServingThread and runs the server.
 
         Args:
             config: The server configuration.
             start_info: The start information object.
+            sock: The socket to run the server on.
         """
         self.config = config
         self.start_info = start_info
@@ -79,15 +87,13 @@ class ServingThread:
         # Configure Uvicorn
         self.uvicorn_config = uvicorn.Config(
             app=self.app,
-            host="127.0.0.1",
-            port=start_info.port,
             log_level="info",
         )
         self.server = _NotifyServer(self.uvicorn_config, start_info)
         start_info.server = self.server
 
         # Run the server (this blocks)
-        self.server.run()
+        self.server.run(sockets=[sock])
 
 
 class FakeLLMServer:
@@ -107,25 +113,17 @@ class FakeLLMServer:
         llms = parse_server_args(model_names, aliases)
 
         self.start_info = StartInfo()
-        self.start_info.port = self._get_free_port()
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.bind(("127.0.0.1", 0))
+        self.start_info.port = sock.getsockname()[1]
 
         self.thread: threading.Thread | None = threading.Thread(
-            target=lambda: ServingThread(llms, self.start_info),
+            target=lambda: ServingThread(llms, self.start_info, sock),
             daemon=True,
         )
         self.thread.start()
 
         self._wait_for_start()
-
-    def _get_free_port(self) -> int:
-        """Finds a free port to bind the server to.
-
-        Returns:
-            An available port number.
-        """
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            s.bind(("", 0))
-            return int(s.getsockname()[1])
 
     def _wait_for_start(self, timeout: int = 300) -> None:  # 5 minutes max
         """Waits for the server to become ready.
@@ -168,6 +166,30 @@ class FakeLLMServer:
         if hasattr(self, "thread") and self.thread and self.thread.is_alive():
             self.thread.join(timeout=5)
         self.thread = None
+
+    def __enter__(self) -> Self:
+        """Enters the context manager.
+
+        Returns:
+            The running FakeLLMServer instance.
+        """
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: TracebackType | None,
+    ) -> None:
+        """Exits the context manager and cleans up resources.
+
+        Args:
+            exc_type: The type of the exception raised, if any.
+            exc_val: The exception instance raised, if any.
+            exc_tb: The traceback for the exception, if any.
+        """
+        self.shutdown()
+        gc.collect()
 
     def __del__(self) -> None:
         """Ensures the server is shut down when the object is destroyed."""

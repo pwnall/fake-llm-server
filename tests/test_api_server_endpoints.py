@@ -17,9 +17,8 @@ def server() -> Generator[FakeLLMServer]:
     """
     # Use gemma-3-270m (smallest) for feature tests.
     model_name = "gemma-3-270m"
-    s = FakeLLMServer(model_names=(model_name,))
-    yield s
-    s.shutdown()
+    with FakeLLMServer(model_names=(model_name,)) as s:
+        yield s
 
 
 def test_list_models(server: FakeLLMServer) -> None:

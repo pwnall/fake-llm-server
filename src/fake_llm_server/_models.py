@@ -4,9 +4,9 @@ import os
 from dataclasses import dataclass
 from typing import Any, cast
 
+import psutil
 from huggingface_hub import hf_hub_download, list_repo_files
 from llama_cpp import Llama
-import psutil
 
 
 @dataclass(frozen=True)

@@ -8,18 +8,41 @@ instead of a large one (LLM).
 
 ## Usage
 
-Create a fake API server and pass the arguments to an API client
+Theoretical usage in a non-testing context:
 
 ```python
 from fake_llm_server import FakeLLMServer
-
-fake_llm_server = FakeLLMServer(
-    model_names=("gemma-3-270m", "qwen-2.5-coder-3b"),
-    aliases={"GPT-5.2-Codex": "qwen-2.5-coder-3b"})
-
 from openai import OpenAI
 
-client = OpenAI(**fake_llm_server.openai_client_args())
+with FakeLLMServer(
+        model_names=("gemma-3-270m", "qwen-2.5-coder-3b"),
+        aliases={"GPT-5.2-Codex": "qwen-2.5-coder-3b"}) as fake_llm_server:
+
+    llm_client = OpenAI(**fake_llm_server.openai_client_args())
+
+  # Use `llm_client`.
+```
+
+Using in tests:
+
+```python
+from fake_llm_server import FakeLLMServer
+from openai import OpenAI
+import pytest
+
+@pytest.fixture
+def llm_client():
+    """Provides an OpenAI client connected to a Fake LLM server."""
+
+  with FakeLLMServer(
+          model_names=("gemma-3-270m", "qwen-2.5-coder-3b"),
+          aliases={"GPT-5.2-Codex": "qwen-2.5-coder-3b"}) as fake_llm_server:
+
+      client = OpenAI(**fake_llm_server.openai_client_args())
+      yield client
+
+def test_logic(llm_client):
+    # Use `llm_client`.
 ```
 
 Each `model_names` elements must be one of the short names for the supported

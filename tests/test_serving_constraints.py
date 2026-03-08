@@ -38,8 +38,8 @@ def test_transitive_aliases_not_supported() -> None:
 
 def test_valid_configuration() -> None:
     """Verifies that a valid configuration is accepted."""
-    server = FakeLLMServer(
+    with FakeLLMServer(
         model_names=("gemma-3-270m",),
         aliases={"my-gemma": "gemma-3-270m"},
-    )
-    server.shutdown()
+    ):
+        pass

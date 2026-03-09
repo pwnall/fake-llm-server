@@ -2,7 +2,7 @@
 
 from openai import OpenAI
 
-from fake_llm_server import FakeLLMServer
+from fake_llm_server import open_fake_llm_server
 
 
 def run_deterministic_test(model_name: str, prompt: str, expected_output: str) -> None:
@@ -13,7 +13,7 @@ def run_deterministic_test(model_name: str, prompt: str, expected_output: str) -
         prompt: The input prompt for the model.
         expected_output: The expected string output from the model.
     """
-    with FakeLLMServer(model_names=(model_name,)) as server:
+    with open_fake_llm_server(model_names=(model_name,)) as server:
         client = OpenAI(**server.openai_client_args())
         response = client.chat.completions.create(
             model=model_name,

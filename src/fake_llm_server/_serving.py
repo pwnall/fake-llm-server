@@ -4,8 +4,9 @@ import gc
 import socket
 import threading
 import time
-from types import TracebackType
-from typing import Any, Self
+from collections.abc import Iterator
+from contextlib import contextmanager
+from typing import Any
 
 import uvicorn
 
@@ -17,15 +18,15 @@ class StartInformation:
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
-        self._port: int | None = None
-        self._server: uvicorn.Server | None = None
+        self._port: int = 0
+        self._server: uvicorn.Server = uvicorn.Server(config=uvicorn.Config(app=""))
         self.started_event = threading.Event()
 
     @property
     def port(self) -> int:
         """Returns the port that the uvicorn listens to."""
         with self._lock:
-            if self._port is None:
+            if self._port == 0:
                 msg = "Port not set"
                 raise RuntimeError(msg)
             return self._port
@@ -37,7 +38,7 @@ class StartInformation:
             self._port = value
 
     @property
-    def server(self) -> uvicorn.Server | None:
+    def server(self) -> uvicorn.Server:
         """Returns the uvicorn server instance."""
         with self._lock:
             return self._server
@@ -104,29 +105,29 @@ class ServingThread:
 class FakeLLMServer:
     """A lightweight, fake implementation of an LLM API server for testing."""
 
-    def __init__(
-        self,
-        model_names: tuple[str, ...] = ("gemma-3-270m",),
-        aliases: dict[str, str] = {},  # noqa: B006
-    ) -> None:
+    def __init__(self, serving_configuration: ServingConfiguration) -> None:
         """Initializes the FakeLLMServer.
 
         Args:
-            model_names: Tuple of model names or repo IDs to use.
-            aliases: Dictionary mapping aliases to model names/repo IDs.
+            serving_configuration: The server configuration.
         """
-        llms = parse_server_args(model_names=model_names, aliases=aliases)
-
+        self.serving_configuration = serving_configuration
         self.start_information = StartInformation()
-        server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        server_socket.bind(("127.0.0.1", 0))
-        self.start_information.port = server_socket.getsockname()[1]
+        self.thread: threading.Thread = threading.Thread()
+        self._server_socket: socket.socket = socket.socket(
+            socket.AF_INET, socket.SOCK_STREAM
+        )
 
-        self.thread: threading.Thread | None = threading.Thread(
+    def start(self) -> None:
+        """Starts the server."""
+        self._server_socket.bind(("127.0.0.1", 0))
+        self.start_information.port = self._server_socket.getsockname()[1]
+
+        self.thread = threading.Thread(
             target=lambda: ServingThread(
-                serving_configuration=llms,
+                serving_configuration=self.serving_configuration,
                 start_information=self.start_information,
-                server_socket=server_socket,
+                server_socket=self._server_socket,
             ),
             daemon=True,
         )
@@ -145,7 +146,7 @@ class FakeLLMServer:
         """
         start_time = time.time()
         while not self.start_information.started_event.is_set():
-            if self.thread is None or not self.thread.is_alive():
+            if not self.thread.is_alive():
                 msg = "Server thread died unexpectedly"
                 raise RuntimeError(msg)
 
@@ -169,41 +170,32 @@ class FakeLLMServer:
 
     def shutdown(self) -> None:
         """Shuts down the server and joins the background thread."""
-        if (
-            hasattr(self, "start_information")
-            and self.start_information
-            and self.start_information.server
-        ):
+        if self.start_information.server:
             self.start_information.server.should_exit = True
 
-        if hasattr(self, "thread") and self.thread and self.thread.is_alive():
+        if self.thread.is_alive():
             self.thread.join(timeout=5)
-        self.thread = None
 
-    def __enter__(self) -> Self:
-        """Enters the context manager.
 
-        Returns:
-            The running FakeLLMServer instance.
-        """
-        return self
+@contextmanager
+def open_fake_llm_server(
+    model_names: tuple[str, ...] = ("gemma-3-270m",),
+    aliases: dict[str, str] = {},  # noqa: B006
+) -> Iterator[FakeLLMServer]:
+    """Context manager to start and stop a FakeLLMServer.
 
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: TracebackType | None,
-    ) -> None:
-        """Exits the context manager and cleans up resources.
+    Args:
+        model_names: Tuple of model names or repo IDs to use.
+        aliases: Dictionary mapping aliases to model names/repo IDs.
 
-        Args:
-            exc_type: The type of the exception raised, if any.
-            exc_val: The exception instance raised, if any.
-            exc_tb: The traceback for the exception, if any.
-        """
-        self.shutdown()
+    Yields:
+        The running FakeLLMServer instance.
+    """
+    llms = parse_server_args(model_names=model_names, aliases=aliases)
+    server = FakeLLMServer(serving_configuration=llms)
+    try:
+        server.start()
+        yield server
+    finally:
+        server.shutdown()
         gc.collect()
-
-    def __del__(self) -> None:
-        """Ensures the server is shut down when the object is destroyed."""
-        self.shutdown()

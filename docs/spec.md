@@ -20,14 +20,16 @@ This principle currently translates to the limitations below.
 
 ### Serving
 
-The library exposes the high-level `FakeLLMServer` class, which is responsible
-for starting and running an API server. Each test is expected to create a new
-instance of this class.
+The library exposes the high-level `open_fake_llm_server` function, which
+returns a `FakeLLMServer` context manager. The factory manager and context
+manager are responsible for starting and running an API server, and for shutting
+it down and releasing the resources. Each test is expected to call the factory
+method and create a new `FakeLLMServer`.
 
 The API server is implemented using [FastAPI](https://fastapi.tiangolo.com/).
 
-Each `FakeLLMServer` instance launches the FastAPI server on top of
-[uvicorn](https://www.uvicorn.org/) in a separate thread.
+Each `FakeLLMServer` instance created by `open_fake_llm_server` runs a FastAPI
+application on top of [uvicorn](https://www.uvicorn.org/) in a separate thread.
 
 ### Inference
 
@@ -37,7 +39,8 @@ The library is focused on models in
 [the GGUF format](https://github.com/ggml-org/ggml/blob/master/docs/gguf.md).
 
 The library explicitly relies on llama.cpp's mmap (memory mapping) feature to
-minimize I/O while `FakeLLMServer` is instantiated as much as one time per test.
+minimize I/O while `open_fake_llm_server` is called as much as one time per
+test.
 
 The library uses [psutil](https://psutil.readthedocs.io/) to compute the number
 of physical cores on the CPU, and sets the llama.cpp number of threads to
@@ -50,27 +53,11 @@ The library downloads and caches models from Hugging Face via
 prefers the Q4_K_M quantization format, which is a good trade-off between CPU
 inference time and quality.
 
-### API
-
-The API server currently implements the following subset of the
-[OpenAI Rest API](https://platform.openai.com/docs/api-reference/).
-
-* [Models](https://developers.openai.com/api/reference/resources/models/)
-    * [List models](https://platform.openai.com/docs/api-reference/models/list)
-* [Chat completions](https://platform.openai.com/docs/api-reference/chat/)
-    * [Create chat completion](https://platform.openai.com/docs/api-reference/completions/create)
-* [Responses](https://platform.openai.com/docs/api-reference/responses)
-    * [Create a model response](https://platform.openai.com/docs/api-reference/responses/create)
+### LLM API implementation
 
 The API server implementation is based on the
 [OpenAPI](https://spec.openapis.org/oas/latest.html)
 [specification for the OpenAI API](https://app.stainless.com/api/spec/documented/openai/openapi.documented.yml).
-
-The API server uses the testing-friendly defaults below:
-
-* Temperature is set to 0 (zero) by default. This makes tests easier to debug.
-* Requests are stateless by default. This is similar to being subject to
-  [Zero Data Retention](https://platform.openai.com/docs/guides/your-data#zero-data-retention).
 
 ## Testing strategy
 
@@ -83,20 +70,23 @@ asserts tha the downloaded `.gguf` file dimension exceeds a lower bound derived
 from the model size. For example, the Gemma 3 270M model file should have at
 least 135 MB, in order to store the quantized weihgts.
 
-### API serving
+### LLM API implementation
 
-The API serving functionality is covered by integration tests that use the
-[openai-python](https://github.com/openai/openai-python) client library and
-the top-level `FakeLLMServer` class.
+The LLM API impelementation is covered by integration tests that use the
+[openai-python](https://github.com/openai/openai-python) client library and the
+top-level `open_fake_llm_server` function.
 
-Each supported API method is covered by a test that expresses typical usage,
-and one test for each interesting parameter. For example, the chat completion
-API has one test that covers the temperature parameter, and all other tests use
-the default temperature zero.
+Each supported LLM API method is covered by a test that expresses typical usage,
+and one test for each interesting parameter. For example, the OpenAI chat
+completion API method has one test that covers the temperature parameter, and
+all other tests use the default temperature zero.
 
 Each integration test instantiates an `OpenAI` client with arguments obtained
-from `FakeLLMServer`. Each integration test uses the smallest model whose
-capabilities meet the test's needs.
+from `FakeLLMServer` (yielded by `open_fake_llm_server`). Each integration test
+uses the smallest model whose capabilities meet the test's needs.
+
+These integration tests provide coverage for the serving infrastructure in
+`open_fake_llm_server` and `FakeLLMServer`.
 
 ### Inference
 

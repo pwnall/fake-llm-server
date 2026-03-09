@@ -2,14 +2,14 @@
 
 from openai import OpenAI
 
-from fake_llm_server import FakeLLMServer
+from fake_llm_server import open_fake_llm_server
 
 
 def test_multi_model_support() -> None:
     """Verifies that the server can handle multiple models."""
     # Using the two smallest models to minimize memory usage during tests
     model_names = ("gemma-3-270m", "gemma-3-1b")
-    with FakeLLMServer(model_names=model_names) as server:
+    with open_fake_llm_server(model_names=model_names) as server:
         client = OpenAI(**server.openai_client_args())
 
         # Check list models
@@ -39,7 +39,7 @@ def test_aliases() -> None:
     """Verifies that aliases work correctly."""
     model_names = ("gemma-3-270m",)
     aliases = {"my-gemma": "gemma-3-270m"}
-    with FakeLLMServer(model_names=model_names, aliases=aliases) as server:
+    with open_fake_llm_server(model_names=model_names, aliases=aliases) as server:
         client = OpenAI(**server.openai_client_args())
 
         # Check list models

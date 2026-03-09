@@ -5,7 +5,7 @@ from collections.abc import Generator
 import pytest
 from openai import OpenAI
 
-from fake_llm_server import FakeLLMServer
+from fake_llm_server import FakeLLMServer, open_fake_llm_server
 
 
 @pytest.fixture(scope="module")
@@ -17,7 +17,7 @@ def server() -> Generator[FakeLLMServer]:
     """
     # Use gemma-3-270m (smallest) for feature tests.
     model_name = "gemma-3-270m"
-    with FakeLLMServer(model_names=(model_name,)) as s:
+    with open_fake_llm_server(model_names=(model_name,)) as s:
         yield s
 
 

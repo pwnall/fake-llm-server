@@ -138,7 +138,7 @@ class _ChatCompletionRequest(BaseModel):
     model: str
     messages: list[_ChatMessage]
     stream: bool = False
-    max_tokens: int | None = None
+    max_tokens: int = -1
     temperature: float = 0.0
     top_p: float = 0.95
 

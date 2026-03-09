@@ -3,7 +3,7 @@
 import logging
 import time
 
-from fake_llm_server import FakeLLMServer
+from fake_llm_server import open_fake_llm_server
 
 # Configure logging to look like print for this simple CLI
 logging.basicConfig(level=logging.INFO, format="%(message)s")
@@ -14,7 +14,7 @@ def main() -> None:
     """Starts the FakeLLMServer and keeps it running until interrupted."""
     logger.info("Starting FakeLLMServer with default model (gemma-3-270m)...")
     # Using gemma-3-270m as it is the recommended small model
-    with FakeLLMServer(model_names=("gemma-3-270m",)) as server:
+    with open_fake_llm_server(model_names=("gemma-3-270m",)) as server:
         logger.info("Server running.")
         logger.info("Client configuration: %s", server.openai_client_args())
         logger.info("Press Ctrl+C to stop.")

@@ -49,7 +49,7 @@ and produces a `FastAPI` application.
 
 The serving code lives in `_serving`.
 
-The main module export is the `FakeLLMServer` class, whose usage is documented
+The main module exports are the `FakeLLMServer` class and `open_fake_llm_server` factory, whose usage is documented
 in the README. Instances of this class run on the main thread.
 
 `ServingThread` encapsulates the data and logic for serving the FastAPI
@@ -64,9 +64,8 @@ protected by a `threading.Lock` mutex. The data includes
 * a `threading.Event` event that is set after the uvicorn server starts
 * a reference to the uvicorn server instance
 
-The `FakeLLMServer` constructor calls `parse_server_args`, creates the
+The `open_fake_llm_server` function calls `parse_server_args` and `FakeLLMServer.start()`. The `FakeLLMServer.start()` method creates `parse_server_args`, creates the
 `StartInfo` instance, binds a socket to a free port, and spawns the uvicorn
 serving thread. The serving thread's target is a lambda that calls the
-`ServingThread` constructor, passing the `ServingConfiguration` produced by
-`parse_server_args`, the `StartInfo`, and the bound socket.
+`ServingThread` constructor, passing the `ServingConfiguration` passed in `ServingConfiguration`, the `StartInfo`, and the bound socket.
 

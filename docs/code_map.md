@@ -49,23 +49,35 @@ and produces a `FastAPI` application.
 
 The serving code lives in `_serving`.
 
-The main module exports are the `FakeLLMServer` class and `open_fake_llm_server` factory, whose usage is documented
-in the README. Instances of this class run on the main thread.
+The main module exports are the `open_fake_llm_server` context manager factory
+function, whose usage is documented in the README, and the `FakeLLMServer`
+class, which is the type of the context object returned by the context manager.
 
-`ServingThread` encapsulates the data and logic for serving the FastAPI
-application via uvicorn on a separate thread. All the logic (including the
-constructor) runs exclusively on the serving thread. All the data is accessed
-exclusively on the serving thread.
+Some of the `FakeLLMServer` interface is specified by the README, such as the
+`openai_client_args()` method. In addition, the class has a constructor that
+starts the LLM API server on a new serving thread and blocks until the HTTP
+server is listening, and a `_shutdown()` method that stops the API server and
+blocks until the serving thread is joined.
 
-`StartInfo` stores information about the uvicorn server's state. The data is
-accessed on both the main thread and the serving thread, so data accesses are
-protected by a `threading.Lock` mutex. The data includes
-* the bound socket's port (the port that the uvicorn listens to)
+Both `open_fake_llm_server` and `FakeLLMServer` reside on the main thread.
+
+The `serving_thread_main` function runs on the serving thread, and has all the
+logic for serving the FastAPI application via uvicorn.
+
+`ServerState` manages the uvicorn server state data needed to coordinate the
+main thread and the serving thread. Data accesses, which can happen on both
+threads, are protected by a `threading.Lock` mutex. The server state data
+includes
 * a `threading.Event` event that is set after the uvicorn server starts
 * a reference to the uvicorn server instance
 
-The `open_fake_llm_server` function calls `parse_server_args` and `FakeLLMServer.start()`. The `FakeLLMServer.start()` method creates `parse_server_args`, creates the
-`StartInfo` instance, binds a socket to a free port, and spawns the uvicorn
-serving thread. The serving thread's target is a lambda that calls the
-`ServingThread` constructor, passing the `ServingConfiguration` passed in `ServingConfiguration`, the `StartInfo`, and the bound socket.
+The `open_fake_llm_server` function is a factory function for a context manager
+object. The function uses the contextlib.contextmanager decorator to simplify
+the implementation. The function calls `parse_server_args`, then it creates,
+yields and shuts down a `FakeLLMServer`.
+
+The `FakeLLMServer` constructor creates the `ServerState` instance, binds a
+socket to a free port, and spawns the uvicorn serving thread. The serving
+thread's target is a lambda that calls `serving_thread_main`, passing the
+`ServingConfiguration`, the `ServerState`, and the bound socket.
 
